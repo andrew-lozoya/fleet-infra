@@ -12,9 +12,6 @@ spec:
         name: open-telemetry
       version: "0.4.1"
   interval: 60m
-  install:
-  remediation:
-    retries: 3
   releaseName: opentelemetry-kube-stack
   values:
     # values.yaml content here
