@@ -11,6 +11,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure/controllers/stagging/cluster_blue
+  path: ./infrastructure/controllers/staging/cluster_blue
   prune: true
   wait: true
