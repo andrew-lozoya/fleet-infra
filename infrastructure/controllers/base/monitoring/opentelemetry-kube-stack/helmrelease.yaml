@@ -29,13 +29,6 @@ spec:
     collectors:
       daemon:
         enabled: true
-        ports:
-          - name: otlp-grpc
-            appProtocol: grpc
-            port: 4317
-            hostPort: 4317
-            protocol: TCP
-            appProtocol: grpc
         env:
           - name: NEW_RELIC_LICENSE_KEY
             valueFrom:
