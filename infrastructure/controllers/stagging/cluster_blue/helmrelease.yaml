@@ -1,0 +1,7 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opentelemetry-stack # Match the name from the base helmrelease.yaml
+spec:
+  values:
+    clusterName: cluster_blue

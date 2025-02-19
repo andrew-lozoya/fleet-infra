@@ -1,0 +1,6 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+namespace: opentelemetry-operator-system
+resources:
+  - helmrelease.yaml
+  - helmrepository.yaml
