@@ -17,7 +17,7 @@ patches:
   - patch: |
       - op: replace
         path: /spec/values/collectors/daemon/config/receivers/prometheus~1podmonitor/config/scrape_configs/0/metric_relabel_configs
-        value: 
+        value:
           - action: replace
             target_label: job_label
             replacement: kubernetes-apps

@@ -1,3 +1,4 @@
+---
 # This config applies recursively to all sub-directories.
 
 # Multiple directories can use separate SOPS configs.
