@@ -14,7 +14,7 @@ spec:
   interval: 1m
   dependsOn:
     - name: cert-manager
-      namespace: cert-manager  # Specify the namespace
+      namespace: cert-manager # Specify the namespace
   releaseName: opentelemetry-kube-stack
   values:
     # values.yaml content here
@@ -74,23 +74,35 @@ spec:
                             # only scrape data from pods running on the same node as collector
                             field: "spec.nodeName=${env:OTEL_K8S_NODE_NAME}"
                     relabel_configs:
-                      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                      - source_labels:
+                          [
+                            __meta_kubernetes_pod_annotation_prometheus_io_scrape,
+                          ]
                         action: keep
                         regex: true
                       - source_labels:
-                          [__meta_kubernetes_pod_annotation_prometheus_io_scrape_slow]
+                          [
+                            __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow,
+                          ]
                         action: drop
                         regex: true
-                      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+                      - source_labels:
+                          [
+                            __meta_kubernetes_pod_annotation_prometheus_io_scheme,
+                          ]
                         action: replace
                         regex: (https?)
                         target_label: __scheme__
-                      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                      - source_labels:
+                          [__meta_kubernetes_pod_annotation_prometheus_io_path]
                         action: replace
                         target_label: __metrics_path__
                         regex: (.+)
                       - source_labels:
-                          [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                          [
+                            __address__,
+                            __meta_kubernetes_pod_annotation_prometheus_io_port,
+                          ]
                         action: replace
                         regex: ([^:]+)(?::\d+)?;(\d+)
                         # NOTE: otel collector uses env var replacement. $$ is used as a literal $.
@@ -111,14 +123,15 @@ spec:
                         regex: Pending|Succeeded|Failed|Completed
                         action: drop
                       - action: replace
-                        source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                        source_labels:
+                          [__meta_kubernetes_pod_label_app_kubernetes_io_name]
                         target_label: job
                     metric_relabel_configs:
                       - action: replace
                         target_label: job_label
                         replacement: kubernetes-apps
                         # Use this to match on metrics you only want to keep
-                      - source_labels: [ __name__ ]
+                      - source_labels: [__name__]
                         regex: (.*)
                         action: keep
             prometheus:
