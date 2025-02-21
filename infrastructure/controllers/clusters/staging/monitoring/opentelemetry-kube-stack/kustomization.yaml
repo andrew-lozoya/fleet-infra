@@ -13,7 +13,7 @@ patches:
       kind: HelmRelease
       name: opentelemetry-stack
       namespace: opentelemetry-operator-system
-  # job_label to keep
+  # metrics to keep
   - patch: |
       - op: replace
         path: /spec/values/collectors/daemon/config/receivers/prometheus~1podmonitor/config/scrape_configs/0/metric_relabel_configs
