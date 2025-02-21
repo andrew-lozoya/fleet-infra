@@ -1,8 +1,8 @@
 # flux2-kustomize-helm-example
 
-[![test](https://github.com/fluxcd/flux2-kustomize-helm-example/workflows/test/badge.svg)](https://github.com/fluxcd/flux2-kustomize-helm-example/actions)
-[![e2e](https://github.com/fluxcd/flux2-kustomize-helm-example/workflows/e2e/badge.svg)](https://github.com/fluxcd/flux2-kustomize-helm-example/actions)
-[![license](https://img.shields.io/github/license/fluxcd/flux2-kustomize-helm-example.svg)](https://github.com/fluxcd/flux2-kustomize-helm-example/blob/main/LICENSE)
+<a href="https://opensource.newrelic.com/oss-category/#new-relic-example"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png"><source media="(prefers-color-scheme: light)" srcset="[https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Example.png](https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png)"><img alt="New Relic Open Source example code project banner." src="[https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Example.png](https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png)"></picture></a>
+
+
 
 For this example we assume a scenario with two clusters: staging and production.
 The end goal is to leverage Flux and Kustomize to manage both clusters while minimizing duplicated declarations.
