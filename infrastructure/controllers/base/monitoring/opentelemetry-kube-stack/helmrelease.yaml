@@ -12,6 +12,8 @@ spec:
         name: open-telemetry
       version: "0.4.1"
   interval: 1m
+  dependsOn:
+    - name: cert-manager
   releaseName: opentelemetry-kube-stack
   values:
     # values.yaml content here
@@ -53,171 +55,236 @@ spec:
             enabled: false
         config:
           receivers:
+            # Collect all metrics from pods on the daemon set's node with at least this annotation
+            # prometheus.io/scrape: 'true'
+            # This can be further customized by setting the following annotations:
+            # prometheus.io/scheme: 'https'
+            # prometheus.io/path: '/data/metrics'
+            # prometheus.io/port: '80'
+            prometheus/podmonitor:
+            config:
+              scrape_configs:
+                - job_name: kubernetes-pods
+                  scrape_interval: 30s
+                  kubernetes_sd_configs:
+                    - role: pod
+                      selectors:
+                        - role: pod
+                          # only scrape data from pods running on the same node as collector
+                          field: "spec.nodeName=${env:OTEL_K8S_NODE_NAME}"
+                  relabel_configs:
+                    - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                      action: keep
+                      regex: true
+                    - source_labels:
+                        [__meta_kubernetes_pod_annotation_prometheus_io_scrape_slow]
+                      action: drop
+                      regex: true
+                    - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+                      action: replace
+                      regex: (https?)
+                      target_label: __scheme__
+                    - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                      action: replace
+                      target_label: __metrics_path__
+                      regex: (.+)
+                    - source_labels:
+                        [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                      action: replace
+                      regex: ([^:]+)(?::\d+)?;(\d+)
+                      # NOTE: otel collector uses env var replacement. $$ is used as a literal $.
+                      replacement: $$1:$$2
+                      target_label: __address__
+                    - action: labelmap
+                      regex: __meta_kubernetes_pod_annotation_prometheus_io_param_(.+)
+                      replacement: __param_$$1
+                    - action: labelmap
+                      regex: __meta_kubernetes_pod_label_(.+)
+                    - source_labels: [__meta_kubernetes_namespace]
+                      action: replace
+                      target_label: namespace
+                    - source_labels: [__meta_kubernetes_pod_name]
+                      action: replace
+                      target_label: pod
+                    - source_labels: [__meta_kubernetes_pod_phase]
+                      regex: Pending|Succeeded|Failed|Completed
+                      action: drop
+                    - action: replace
+                      source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                      target_label: job
+                  metric_relabel_configs:
+                    - action: replace
+                      target_label: job_label
+                      replacement: kubernetes-apps
+                      # Use this to match on metrics you only want to keep
+                    - source_labels: [ __name__ ]
+                      regex: (.*)
+                      action: keep
             prometheus:
               config:
                 scrape_configs:
-                - authorization:
-                    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-                    type: Bearer
-                  follow_redirects: true
-                  honor_labels: true
-                  honor_timestamps: true
-                  job_name: serviceMonitor/opentelemetry-operator-system/opentelemetry-kube-stack-kubelet/0
-                  kubernetes_sd_configs:
-                  - follow_redirects: true
-                    kubeconfig_file: ""
-                    role: node
-                  metrics_path: /metrics
-                  relabel_configs:
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - job
-                    target_label: __tmp_prometheus_job_name
-                  - action: replace
-                    replacement: kubelet
-                    target_label: job_label
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __meta_kubernetes_node_name
-                    target_label: node
-                  - action: replace
-                    regex: (.*)
-                    replacement: https-metrics
-                    separator: ;
-                    target_label: endpoint
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __metrics_path__
-                    target_label: metrics_path
-                  - action: hashmod
-                    modulus: 1
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __address__
-                    target_label: __tmp_hash
-                  - action: keep
-                    regex: $(SHARD)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __tmp_hash
-                  scheme: https
-                  scrape_interval: 30s
-                  scrape_timeout: 10s
-                  tls_config:
-                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                    insecure_skip_verify: true
-                - authorization:
-                    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-                    type: Bearer
-                  follow_redirects: true
-                  honor_labels: true
-                  honor_timestamps: true
-                  job_name: serviceMonitor/opentelemetry-operator-system/opentelemetry-kube-stack-kubelet/1
-                  kubernetes_sd_configs:
-                  - follow_redirects: true
-                    kubeconfig_file: ""
-                    role: node
-                  metric_relabel_configs:
-                  - action: drop
-                    regex: container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __name__
-                  - action: drop
-                    regex: container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __name__
-                  - action: drop
-                    regex: container_memory_(mapped_file|swap)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __name__
-                  - action: drop
-                    regex: container_(file_descriptors|tasks_state|threads_max)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __name__
-                  - action: drop
-                    regex: container_spec.*
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __name__
-                  - action: drop
-                    regex: .+;
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - id
-                    - pod
-                  metrics_path: /metrics/cadvisor
-                  relabel_configs:
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - job
-                    target_label: __tmp_prometheus_job_name
-                  - action: replace
-                    replacement: kubelet
-                    target_label: job_label
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __meta_kubernetes_node_name
-                    target_label: node
-                  - action: replace
-                    regex: (.*)
-                    replacement: https-metrics
-                    separator: ;
-                    target_label: endpoint
-                  - action: replace
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __metrics_path__
-                    target_label: metrics_path
-                  - action: hashmod
-                    modulus: 1
-                    regex: (.*)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __address__
-                    target_label: __tmp_hash
-                  - action: keep
-                    regex: $(SHARD)
-                    replacement: $$1
-                    separator: ;
-                    source_labels:
-                    - __tmp_hash
-                  scheme: https
-                  scrape_interval: 30s
-                  scrape_timeout: 10s
-                  tls_config:
-                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                    insecure_skip_verify: true
+                  - authorization:
+                      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                      type: Bearer
+                    follow_redirects: true
+                    honor_labels: true
+                    honor_timestamps: true
+                    job_name: serviceMonitor/opentelemetry-operator-system/opentelemetry-kube-stack-kubelet/0
+                    kubernetes_sd_configs:
+                      - follow_redirects: true
+                        kubeconfig_file: ""
+                        role: node
+                    metrics_path: /metrics
+                    relabel_configs:
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - job
+                        target_label: __tmp_prometheus_job_name
+                      - action: replace
+                        replacement: kubelet
+                        target_label: job_label
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __meta_kubernetes_node_name
+                        target_label: node
+                      - action: replace
+                        regex: (.*)
+                        replacement: https-metrics
+                        separator: ;
+                        target_label: endpoint
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __metrics_path__
+                        target_label: metrics_path
+                      - action: hashmod
+                        modulus: 1
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __address__
+                        target_label: __tmp_hash
+                      - action: keep
+                        regex: $(SHARD)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __tmp_hash
+                    scheme: https
+                    scrape_interval: 30s
+                    scrape_timeout: 10s
+                    tls_config:
+                      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                      insecure_skip_verify: true
+                  - authorization:
+                      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                      type: Bearer
+                    follow_redirects: true
+                    honor_labels: true
+                    honor_timestamps: true
+                    job_name: serviceMonitor/opentelemetry-operator-system/opentelemetry-kube-stack-kubelet/1
+                    kubernetes_sd_configs:
+                      - follow_redirects: true
+                        kubeconfig_file: ""
+                        role: node
+                    metric_relabel_configs:
+                      - action: drop
+                        regex: container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __name__
+                      - action: drop
+                        regex: container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __name__
+                      - action: drop
+                        regex: container_memory_(mapped_file|swap)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __name__
+                      - action: drop
+                        regex: container_(file_descriptors|tasks_state|threads_max)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __name__
+                      - action: drop
+                        regex: container_spec.*
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __name__
+                      - action: drop
+                        regex: .+;
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - id
+                          - pod
+                    metrics_path: /metrics/cadvisor
+                    relabel_configs:
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - job
+                        target_label: __tmp_prometheus_job_name
+                      - action: replace
+                        replacement: kubelet
+                        target_label: job_label
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __meta_kubernetes_node_name
+                        target_label: node
+                      - action: replace
+                        regex: (.*)
+                        replacement: https-metrics
+                        separator: ;
+                        target_label: endpoint
+                      - action: replace
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __metrics_path__
+                        target_label: metrics_path
+                      - action: hashmod
+                        modulus: 1
+                        regex: (.*)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __address__
+                        target_label: __tmp_hash
+                      - action: keep
+                        regex: $(SHARD)
+                        replacement: $$1
+                        separator: ;
+                        source_labels:
+                          - __tmp_hash
+                    scheme: https
+                    scrape_interval: 30s
+                    scrape_timeout: 10s
+                    tls_config:
+                      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                      insecure_skip_verify: true
           processors:
             cumulativetodelta: {}
             memory_limiter:
@@ -235,30 +302,30 @@ spec:
                   new_name: k8s.cluster.info
             metricstransform/kube_pod_status_phase:
               transforms:
-                - include: 'kube_pod_container_status_waiting'
+                - include: "kube_pod_container_status_waiting"
                   match_type: strict
                   action: update
-                  new_name: 'kube_pod_container_status_phase'
+                  new_name: "kube_pod_container_status_phase"
                   operations:
-                  - action: add_label
-                    new_label: container_phase
-                    new_value: waiting
-                - include: 'kube_pod_container_status_running'
+                    - action: add_label
+                      new_label: container_phase
+                      new_value: waiting
+                - include: "kube_pod_container_status_running"
                   match_type: strict
                   action: update
-                  new_name: 'kube_pod_container_status_phase'
+                  new_name: "kube_pod_container_status_phase"
                   operations:
-                  - action: add_label
-                    new_label: container_phase
-                    new_value: running
-                - include: 'kube_pod_container_status_terminated'
+                    - action: add_label
+                      new_label: container_phase
+                      new_value: running
+                - include: "kube_pod_container_status_terminated"
                   match_type: strict
                   action: update
-                  new_name: 'kube_pod_container_status_phase'
+                  new_name: "kube_pod_container_status_phase"
                   operations:
-                  - action: add_label
-                    new_label: container_phase
-                    new_value: terminated
+                    - action: add_label
+                      new_label: container_phase
+                      new_value: terminated
             resource/metrics:
               attributes:
                 - key: host.id
@@ -269,7 +336,7 @@ spec:
                   from_attribute: "k8s.cluster.name"
                 - key: newrelicOnly
                   action: upsert
-                  value: 'true'
+                  value: "true"
                 - key: service.name
                   action: delete
                 - key: service_name
@@ -359,9 +426,9 @@ spec:
       enabled: true
       serviceMonitor:
         relabelings:
-        - action: replace
-          targetLabel: job_label
-          replacement: scheduler
+          - action: replace
+            targetLabel: job_label
+            replacement: scheduler
     kube-state-metrics:
       enabled: true
       prometheus:
