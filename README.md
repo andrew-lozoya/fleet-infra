@@ -3,14 +3,64 @@
 <a href="https://opensource.newrelic.com/oss-category/#new-relic-example"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png"><source media="(prefers-color-scheme: light)" srcset="[https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Example.png](https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png)"><img alt="New Relic Open Source example code project banner." src="[https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Example.png](https://github.com/newrelic/opensource-website/blob/main/src/images/categories/dark/Example_Code.png)"></picture></a>
 
 
+## Architecture
 
-For this example we assume a scenario with two clusters: staging and production.
-The end goal is to leverage Flux and Kustomize to manage both clusters while minimizing duplicated declarations.
+The aim of this workflow is to maintain a set of foundational Kubernetes configurations applicable to various components, such as monitoring and infrastructure. However, different environments often necessitate bespoke configurations or unique cases.
 
-We will configure Flux to install, test and upgrade and patch the opentelemtry-kube-stack operator using
-`HelmRepository` and `HelmRelease` custom resources.
-Flux will monitor the Helm repository, and it will automatically
-upgrade the Helm releases to their latest chart version based on semver ranges.
+Consequently, the `./clusters` directory contains Flux resources managed by Kustomize, designed to bootstrap the cluster for each environment. These resources are linked to the appropriate directories, namely `./controllers` and `./configs`, facilitating straightforward patching and overlay management:
+
+```mermaid
+flowchart LR
+    RootClusters["./clusters"]
+
+    subgraph Environments
+        direction TB
+
+        subgraph StagingClusters[Staging Clusters]
+            ClusterAStaging["Cluster A"]
+            ClusterBStaging["Cluster B"]
+            ClusterCStaging["Cluster C"]
+        end
+    end
+    Infrastructure["infrastructure.yaml"]
+    RootClusters --> Environments
+    StagingClusters -->|Bootstrap| Infrastructure
+```
+
+Each cluster bootstraps the components in the following order:
+
+```mermaid
+flowchart TD
+    subgraph ./controllers
+
+        subgraph ClustersSubgraph["/clusters/staging"]
+            StagingKustomization["kustomization.yaml"]
+
+            subgraph MonitoringSubgraph["/monitoring"]
+                MonitorKustomization["kustomization.yaml"]
+
+                subgraph OpenTelemetrySubgraph["/opentelemetry-kube-stack"]
+                    opentelemetry-kube-stackKustomization["kustomization.yaml"]
+                end
+
+            end
+        end
+        MonitorKustomization --> |References| OpenTelemetrySubgraph
+        subgraph ControllersSubgraph["./base"]
+            CertManager["cert-manager"]
+
+            subgraph BASESTUFF["/monitoring"]
+                Baseopentelemetry-kube-stack["opentelemetry-kube-stack"]
+            end
+        end
+        StagingKustomization --> |References| CertManager
+        StagingKustomization --> |References| MonitoringSubgraph
+        opentelemetry-kube-stackKustomization --> |References| BASESTUFF
+        opentelemetry-kube-stackKustomization <--> |DependsOn| CertManager
+    end
+```
+
+After the components are bootstrapped, they **continuously reconcil**e at set intervals with the designated folders in the repository, ensuring that the cluster's state remains aligned with the configurations specified in Git. This process embodies the core principles of **GitOps**.
 
 ## Prerequisites
 
